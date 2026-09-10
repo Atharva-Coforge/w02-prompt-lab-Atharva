@@ -1,3 +1,3 @@
-The shortest case (E12) used 228 input tokens and took 5033 ms.
-The longest case (E11) used 274 input tokens and took 5135 ms. Input tokens increased with document length, while latency barely changed, and the first call was not the fastest. 
+The shortest case (E12) used 228 input tokens and took 5033 ms and the longest case (E11) used 274 input tokens and took 5135 ms. 
+Input tokens increased with document length, while latency barely changed, and the first call was not the fastest. 
 A short document is a poor estimator of model workload: token count tracks size more reliably than wall-clock time, which also includes first-call warmup.
