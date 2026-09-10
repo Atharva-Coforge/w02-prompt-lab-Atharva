@@ -32,7 +32,13 @@ def load_case_sources() -> dict[str, str]:
     return sources
 
 
-def call_ollama(base_url: str, model_id: str, prompt: str, num_predict: int) -> tuple[dict[str, object], int]:
+def as_int(value: object) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def call_ollama(
+    base_url: str, model_id: str, prompt: str, num_predict: int
+) -> tuple[dict[str, object], int]:
     started = time.perf_counter()
     response = httpx.post(
         f"{base_url}/api/generate",
@@ -62,10 +68,12 @@ def main() -> None:
 
     for case_id in CASE_IDS:
         prompt = template.replace("{document_text}", sources[case_id])
-        payload, latency_ms = call_ollama(settings.ollama_base_url, model.model_id, prompt, MAX_OUTPUT_TOKENS)
+        payload, latency_ms = call_ollama(
+            settings.ollama_base_url, model.model_id, prompt, MAX_OUTPUT_TOKENS
+        )
 
-        input_tokens = int(payload.get("prompt_eval_count") or 0)
-        output_tokens = int(payload.get("eval_count") or 0)
+        input_tokens = as_int(payload.get("prompt_eval_count"))
+        output_tokens = as_int(payload.get("eval_count"))
         stop_reason = payload.get("done_reason")
         response_text = payload.get("response")
 
@@ -92,7 +100,10 @@ def main() -> None:
             response_text=str(response_text) if response_text is not None else None,
         )
         append_record(record, run_id)
-        print(f"{case_id}: {input_tokens} in / {output_tokens} out / {latency_ms} ms / {stop_reason}")
+        print(
+            f"{case_id}: {input_tokens} in / {output_tokens} out / "
+            f"{latency_ms} ms / {stop_reason}"
+        )
 
     truncation_prompt = template.replace("{document_text}", sources["E11"])
     truncation_payload, truncation_latency_ms = call_ollama(
@@ -102,8 +113,8 @@ def main() -> None:
         TRUNCATION_OUTPUT_TOKENS,
     )
     truncation_stop = truncation_payload.get("done_reason")
-    truncation_input = int(truncation_payload.get("prompt_eval_count") or 0)
-    truncation_output = int(truncation_payload.get("eval_count") or 0)
+    truncation_input = as_int(truncation_payload.get("prompt_eval_count"))
+    truncation_output = as_int(truncation_payload.get("eval_count"))
     truncation_text = truncation_payload.get("response")
     truncation_record = CallRecord(
         record_id=str(uuid.uuid4()),
