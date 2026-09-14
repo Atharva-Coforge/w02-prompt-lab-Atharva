@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -8,6 +9,14 @@ from pydantic import BaseModel, ValidationError
 from promptlab.adapters.base import CompletionRequest, ModelAdapter
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _parse_json_text(text: str) -> object:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+        stripped = re.sub(r"\s*```$", "", stripped)
+    return json.loads(stripped)
 
 
 def complete_structured(
@@ -33,7 +42,7 @@ def complete_structured(
         result = adapter.complete(current, run_id)
         text = result.text or ""
         try:
-            parsed = json.loads(text)
+            parsed = _parse_json_text(text)
             return schema.model_validate(parsed)
         except (json.JSONDecodeError, ValidationError) as exc:
             last_error = exc
