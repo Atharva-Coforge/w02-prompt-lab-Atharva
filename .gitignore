@@ -1,5 +1,5 @@
 .cursor/
-assignments/
+/assignments/
 cursorassignmentexplanation/
 
 # Worktrees. These live inside the mounted path so they survive a container
