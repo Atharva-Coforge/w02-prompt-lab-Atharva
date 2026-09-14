@@ -44,4 +44,20 @@ Output
 
 Return a JSON object matching this generated schema description:
 
-{
+{schema_description}
+
+Use citation for source evidence. A citation must name a section heading that actually
+appears in the source document.
+
+Return only the JSON object. Do not wrap the response in Markdown and do not add commentary
+before or after it.
+
+When the task cannot be completed
+
+If the marked text is not an applicable procedure, use the out-of-scope or non-valid document
+status defined by the supplied SummarizationOutput schema.
+
+Do not force unrelated content into procedure fields.
+
+Any field not supported by the source must use the schema's absent representation rather than
+a value supplied from model knowledge.
