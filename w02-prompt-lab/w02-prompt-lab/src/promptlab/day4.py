@@ -11,7 +11,7 @@ from promptlab.adapters.base import CompletionRequest, CompletionResult
 from promptlab.adapters.ollama import OllamaAdapter
 from promptlab.config import PROJECT_ROOT, Settings
 from promptlab.prompts import PromptTemplate, load, render_user
-from promptlab.records import OutputRecord, append_record
+from promptlab.records import OutputRecord, append_record, load_records
 from promptlab.schemas import TriageOutputWithAnalysis
 from promptlab.structured import complete_structured
 from promptlab.usage import CallRecord
@@ -113,6 +113,16 @@ def main() -> None:
     adapter = CountingAdapter(inner)
     run_id = "be679007-a994-4f3f-9c18-6c37e2b64678"
     RUN_DOCS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if RUN_DOCS_PATH.exists():
+        kept = [
+            row
+            for row in load_records(RUN_DOCS_PATH, OutputRecord)
+            if row.prompt_version != "v2"
+        ]
+        RUN_DOCS_PATH.write_text(
+            "".join(row.model_dump_json() + "\n" for row in kept),
+            encoding="utf-8",
+        )
 
     template = load(PROMPT_ID, PROMPT_VERSION)
     for case_id, source in load_cases(CASES_PATH):
