@@ -23,7 +23,7 @@ jobs:
         run: uv run ruff check .
 
       - name: mypy
-        run: uv run mypy src/promptlab/usage.py src/promptlab/day1.py
+        run: uv run mypy src/
 
       - name: pytest
         run: uv run pytest
