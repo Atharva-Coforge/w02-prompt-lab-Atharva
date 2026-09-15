@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
 from promptlab.adapters.base import CompletionRequest, ModelAdapter
-
-T = TypeVar("T", bound=BaseModel)
 
 
 def _parse_json_text(text: str) -> object:
@@ -19,7 +16,7 @@ def _parse_json_text(text: str) -> object:
     return json.loads(stripped)
 
 
-def complete_structured(
+def complete_structured[T: BaseModel](
     adapter: ModelAdapter,
     request: CompletionRequest,
     schema: type[T],

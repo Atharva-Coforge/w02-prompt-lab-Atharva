@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from typing import Literal
+from typing import Literal, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -87,6 +86,30 @@ OUTPUT_SCHEMAS: dict[TaskName, type[StrictModel]] = {
 }
 
 
+def _type_text(annotation: object) -> str:
+    origin = get_origin(annotation)
+    if origin is Literal:
+        options = ", ".join(repr(value) for value in get_args(annotation))
+        return f"one of {options}"
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        inner = ", ".join(
+            f"{name}: {_type_text(field.annotation)}"
+            for name, field in annotation.model_fields.items()
+        )
+        return f"object {{ {inner} }}"
+    if origin is not None:
+        args = ", ".join(_type_text(arg) for arg in get_args(annotation))
+        return f"{getattr(origin, '__name__', origin)}[{args}]"
+    return getattr(annotation, "__name__", str(annotation))
+
+
 def schema_description(model: type[BaseModel]) -> str:
-    """ Describe a Pydantic model so the prompts can consume the schema from the code. """
-    return json.dumps(model.model_json_schema(), indent=2)
+    lines = [
+        f"Return one filled JSON instance of {model.__name__}.",
+        "Do not return a JSON Schema. Do not include $defs, properties, required, or type.",
+        "document_status is a string, not an EvidenceField object.",
+        "Allowed keys:",
+    ]
+    for name, field in model.model_fields.items():
+        lines.append(f"- {name}: {_type_text(field.annotation)}")
+    return "\n".join(lines)
