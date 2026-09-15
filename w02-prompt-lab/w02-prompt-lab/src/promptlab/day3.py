@@ -22,7 +22,7 @@ EXTRACT_PROMPT = PROJECT_ROOT / "src" / "prompts" / "extract.v2.md"
 SUMMARIZE_CASES = PROJECT_ROOT / "cases" / "summarization.jsonl"
 EXTRACT_CASES = PROJECT_ROOT / "cases" / "extraction.jsonl"
 RUN_DOCS_PATH = PROJECT_ROOT / "docs" / "day3-run.jsonl"
-MAX_OUTPUT_TOKENS = 256
+MAX_OUTPUT_TOKENS = 1024
 TEMPERATURE = 0.0
 
 
