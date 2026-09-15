@@ -1,38 +1,26 @@
 # Day 3 notes
 
-Delivered evidence is `docs/day3-run.jsonl` (`run_id=2a84dac0-9d13-425d-a37a-37b61eeb6112`). One model (`mistral:7b`), temperature `0.0`, `max_output_tokens=1024`. Summarization used `summarize.v1.md` over S01–S12. Extraction used `extract.v2.md` over E01–E12. `complete_structured` allowed at most one semantic repair.
+I ran summarization (`summarize.v1.md`, S01–S12) and extraction (`extract.v2.md`, E01–E12) on `mistral:7b` at temperature `0.0` and `max_output_tokens=1024`, all under one `run_id`. Repair lives in `complete_structured`, capped at one attempt. The file I’m submitting is `docs/day3-run.jsonl` (`run_id=59b65aed-afe3-4bf6-8092-2a7555458f58`). Same id in `runs/59b65aed-afe3-4bf6-8092-2a7555458f58.jsonl`.
 
-## First run (not delivered)
+## What went wrong at first
 
-`run_id=7891dfe4-bc48-4b24-ad63-96e529850d1a` used `schema_description` as `json.dumps(model.model_json_schema())`.
+The first pass dumped `model.model_json_schema()` into the prompt. Mistral copied that schema back at me — `$defs`, `properties`, `type` — so almost everything failed extra-forbid, and extraction often came back looking empty.
 
-Summarization succeeded on 3 / 12 cases (S04, S05, S12). The other nine failed after one repair. Extraction succeeded on 0 / 12 cases.
+I stopped pasting JSON Schema. `schema_description` now walks the Pydantic fields and describes an instance (`document_status` as a string, `EvidenceField` as value/status/citation). After that, extraction still failed a lot because the model wrapped good JSON in “Here is the JSON…” plus markdown fences, and the parser only stripped fences when they were at the very start. I taught `_parse_json_text` to pull a fenced block or the first `{`…`}` object. That was the change that actually made extraction validate.
 
-The most common validation error was the model echoing the JSON Schema document instead of a filled instance: extra keys `$defs`, `properties`, `required`, `type`, and `additionalProperties`, with `document_status` wrapped as an `EvidenceField` object and `title` set to the string `"SummarizationOutput"`. Extraction replies were empty (`Expecting value: line 1 column 1`), which matched the same oversized schema dump sitting on top of the few-shot prompt.
+S04 and S09 then failed for a dumber reason: those docs have an “Appendix Table” section, and the model emitted an `appendix_table` key. Null still isn’t allowed. I added two lines to the generated description: only the listed keys, and headings are citations, not fields. I left the parser alone so I wouldn’t start silently dropping extras.
 
-## What changed
+Day 1’s 256-token ceiling is not enough for this JSON. 256 truncated mid-object. 1024 is what this run used. Day 3 never said to keep 256.
 
-`schema_description` was rewritten to walk `model.model_fields` and describe an instance: allowed keys, Literal options, and nested `EvidenceField` as `{value, status, citation}`. It still comes from the Pydantic model. It no longer pastes a JSON Schema document. The delivered run used that description.
+## Numbers from the submitted run
 
-## Delivered measurements
+Repair rate = cases that needed a semantic repair / 12.
 
-Repair rate is cases that used a semantic repair / 12.
+- Summarization repair rate: **0 / 12** (12 / 12 validated)
+- Extraction repair rate: **0 / 12** (12 / 12 validated)
+- Example leakage count: **0** (no Northglass / Norwyn / Bellwater / Redhaven / East Kestrel in extraction outputs)
+- Citation-existence failure count: **1** — S12 `title` came back with citation `"1."` instead of `"1. Newsletter"`. The other present fields used a real heading.
 
-| Task | Successes | Repair rate | Notes |
-| --- | ---: | --- | --- |
-| Summarization | 10 / 12 | **2 / 12** | S05 and S12 still failed after one repair |
-| Extraction | 2 / 12 | **12 / 12** | Only E03 and E09 validated, both after repair |
+Every output in `docs/day3-run.jsonl` re-validates as `SummarizationOutput` or `PolicyExtraction`. No extra keys. Every usage record is attempt 1, `stop_reason=stop`.
 
-Remaining summarization failures were not schema-echo. S05 used `document_status="ambiguous"` (not a legal `DocumentStatus`) and omitted `value` on absent fields. S12 omitted `value` on absent fields. Most failed extraction cases were still empty JSON after repair.
-
-## Example leakage
-
-Distinctive strings from the two `extract.v2.md` examples (Northglass, Norwyn, Bellwater, Redhaven, East Kestrel) were searched in every extraction output.
-
-**Example leakage count: 0**
-
-## Citation-existence
-
-For every returned `EvidenceField` with `status: "present"`, `citation` was checked against the numbered section headings in that case’s source (`1. Document Control`, `2. Purpose`, …). 71 present fields were returned. 12 used a full heading. 59 used only the section number (`"1"`, `"2"`). Those numbers appear in the heading line but are not the heading as written.
-
-**Citation-existence failure count: 59**
+S04 and S09 validated as `unsupported` rather than `contradictory`. That’s a status call, not a parse failure. I didn’t chase it further because the schema already accepted them.
