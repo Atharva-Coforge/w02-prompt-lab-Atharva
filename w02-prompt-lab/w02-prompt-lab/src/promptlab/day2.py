@@ -14,7 +14,7 @@ from promptlab.usage import CallRecord, append_record
 PROMPT_PATH = PROJECT_ROOT / "src" / "prompts" / "baseline.v0.md"
 CASES_PATH = PROJECT_ROOT / "cases" / "summarization.jsonl"
 RUN_DOCS_PATH = PROJECT_ROOT / "docs" / "day2-run.jsonl"
-MAX_OUTPUT_TOKENS = 512
+MAX_OUTPUT_TOKENS = 256
 TEMPERATURE = 0.0
 PROMPT_ID = "baseline"
 PROMPT_VERSION = "v0"

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from promptlab.day1 import as_int, load_case_sources, main  # type: ignore[import-untyped]
+from promptlab.day1 import as_int, load_case_sources, main
 
 
 class FakeResponse:
