@@ -107,8 +107,18 @@ def schema_description(model: type[BaseModel]) -> str:
     lines = [
         f"Return one filled JSON instance of {model.__name__}.",
         "Do not return a JSON Schema. Do not include $defs, properties, required, or type.",
-        "document_status is a string, not an EvidenceField object.",
-        "Allowed keys:",
+        "document_status is a string: one of "
+        "'valid', 'contradictory', 'superseded', 'unsupported'.",
+        "Never set document_status to 'ambiguous'. "
+        "Use 'unsupported' when the text is not a procedure or policy.",
+        "Each EvidenceField must include value, status, and citation.",
+        'When status is "absent", set "value": null and "citation": null. Do not omit value.',
+        'When status is "present", citation must be the exact section heading from the source '
+        '(for example "1. Document Control"), not only the number.',
+        "Use only the Allowed keys listed below. "
+        "Extra keys are forbidden even when the value is null.",
+        "Section headings are citations, not keys. "
+        "Do not emit appendix_table, coverage_table, or any other heading-derived key.",
     ]
     for name, field in model.model_fields.items():
         lines.append(f"- {name}: {_type_text(field.annotation)}")

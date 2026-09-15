@@ -10,9 +10,15 @@ from promptlab.adapters.base import CompletionRequest, ModelAdapter
 
 def _parse_json_text(text: str) -> object:
     stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
-        stripped = re.sub(r"\s*```$", "", stripped)
+    if not stripped:
+        raise json.JSONDecodeError("Expecting value", stripped, 0)
+    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", stripped, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        stripped = fenced.group(1).strip()
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        stripped = stripped[start : end + 1]
     return json.loads(stripped)
 
 
