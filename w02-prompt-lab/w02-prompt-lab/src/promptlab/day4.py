@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
@@ -13,7 +12,7 @@ from promptlab.adapters.ollama import OllamaAdapter
 from promptlab.config import PROJECT_ROOT, Settings
 from promptlab.prompts import PromptTemplate, load, render_user
 from promptlab.records import OutputRecord, append_record
-from promptlab.schemas import TriageOutput
+from promptlab.schemas import TriageOutputWithAnalysis
 from promptlab.structured import complete_structured
 from promptlab.usage import CallRecord
 from promptlab.usage import append_record as append_usage_record
@@ -21,7 +20,7 @@ from promptlab.usage import append_record as append_usage_record
 CASES_PATH = PROJECT_ROOT / "cases" / "triage.jsonl"
 RUN_DOCS_PATH = PROJECT_ROOT / "docs" / "day4-run.jsonl"
 PROMPT_ID = "triage"
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 MAX_OUTPUT_TOKENS = 1024
 TEMPERATURE = 0.0
 
@@ -112,15 +111,15 @@ def main() -> None:
     model = settings.models["mistral"]
     inner = OllamaAdapter(model_id=model.model_id)
     adapter = CountingAdapter(inner)
-    run_id = str(uuid.uuid4())
+    run_id = "be679007-a994-4f3f-9c18-6c37e2b64678"
     RUN_DOCS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if RUN_DOCS_PATH.exists():
-        RUN_DOCS_PATH.unlink()
 
     template = load(PROMPT_ID, PROMPT_VERSION)
     for case_id, source in load_cases(CASES_PATH):
         request = build_request(template, case_id, source)
-        record = run_case(adapter, request, TriageOutput, run_id, model.logical_name)
+        record = run_case(
+            adapter, request, TriageOutputWithAnalysis, run_id, model.logical_name
+        )
         append_record(RUN_DOCS_PATH, record)
         print(
             f"triage {case_id} {template.version}: succeeded={record.succeeded} "
