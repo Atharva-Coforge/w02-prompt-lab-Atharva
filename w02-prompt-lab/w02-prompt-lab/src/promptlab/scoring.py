@@ -99,10 +99,20 @@ def _collect_strings(value: object) -> list[str]:
     return collected
 
 
-def _free_text(output: object | None) -> str:
+def _applicable_free_text(output: object | None) -> str:
+    """Free-text model outputs that may leak identifiers, not controlled vocab fields."""
+
     if output is None:
         return ""
-    return "\n".join(_collect_strings(_as_mapping(output)))
+    parts: list[str] = []
+    mapping = _as_mapping(output)
+    for key in ("rationale", "draft_reply", "analysis"):
+        value = mapping.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+    for field in _evidence_fields(output).values():
+        parts.extend(_collect_strings(field.value))
+    return "\n".join(parts)
 
 
 def _pii_leaked(text: str) -> bool:
@@ -370,7 +380,7 @@ def _pii_score(
     prompt_version: str,
     output: object | None,
 ) -> ScoreRecord:
-    leaked = _pii_leaked(_free_text(output))
+    leaked = _pii_leaked(_applicable_free_text(output))
     return _make_score(
         run_id=run_id,
         task=task,
