@@ -2,32 +2,41 @@
 
 Run ID: `day5-full`
 
-Counts are reported with their denominators. Latency uses median and maximum rather than mean.
+One table per task. Quality, token usage, latency, and repairs are in the same table. Counts use numerators and denominators, not percentages. Latency is median and maximum with observation count `n`. Mean latency is not used. Local Ollama `cost_usd` is `$0.00`. Qwen rows are prompt-transfer results: the same prompt version, not an adapted Qwen prompt.
 
-## Extraction
-
-| Model | Prompt | Valid outputs | Metrics | Input tokens | Output tokens | Median latency | Max latency | n | Repairs | Retries | Final failures |
-| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| mistral | extract.v2 | 12/12 | citation_correctness: 73/73<br>pii_leakage: 0/12 ↓<br>required_evidence_recall: 71/72<br>unsupported_field_avoidance: 10/12<br>version_selection_accuracy: 0/1 | 22811 | 4839 | 18772 ms | 20763 ms | 12 | 0/12 | 0 | 0 |
-| qwen | extract.v2 transfer | 12/12 | citation_correctness: 73/73<br>pii_leakage: 0/12 ↓<br>required_evidence_recall: 71/72<br>unsupported_field_avoidance: 10/12<br>version_selection_accuracy: 1/1 | 19283 | 3416 | 14989 ms | 18104 ms | 12 | 0/12 | 0 | 0 |
+Tokens per case are totals for that row divided by 12 cases. `n` is the number of recorded model-call attempts (repairs add extra observations).
 
 ## Summarization
 
-| Model | Prompt | Valid outputs | Metrics | Input tokens | Output tokens | Median latency | Max latency | n | Repairs | Retries | Final failures |
-| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| mistral | summarize.v1 | 11/12 | citation_correctness: 56/57<br>pii_leakage: 0/12 ↓<br>required_evidence_recall: 55/60<br>unsupported_field_avoidance: 9/12<br>version_selection_accuracy: 0/1 | 13433 | 3705 | 13368 ms | 15619 ms | 13 | 1/12 | 0 | 1 |
-| qwen | summarize.v1 transfer | 11/12 | citation_correctness: 56/56<br>pii_leakage: 0/12 ↓<br>required_evidence_recall: 55/60<br>unsupported_field_avoidance: 10/12<br>version_selection_accuracy: 1/1 | 11571 | 3133 | 12442 ms | 16050 ms | 13 | 1/12 | 0 | 1 |
+Prompt: `summarize.v1` on Mistral; `summarize.v1 transfer` on Qwen.
+
+| Model | Prompt | Quality (valid) | Required-evidence recall | Citation correctness | Missed values | Invented/unsupported | Version selection | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | n | Repairs | Final failures |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mistral | summarize.v1 | 11/12 | 55/60 | 56/57 | 5/60 | 3/12 | 0/1 | 0/12 | 1119.4 | 308.8 | 13368 ms | 15619 ms | 13 | 1/12 | 1 |
+| Qwen | summarize.v1 transfer | 11/12 | 55/60 | 56/56 | 5/60 | 2/12 | 1/1 | 0/12 | 964.2 | 261.1 | 12442 ms | 16050 ms | 13 | 1/12 | 1 |
+
+Mistral S04 and Qwen S09 failed schema validation after one structured repair. Those cases are the 1/12 final failures and contribute the extra latency observation (`n = 13`).
+
+## Extraction
+
+Prompt: `extract.v2` on Mistral; `extract.v2 transfer` on Qwen. Missed values and invented/unsupported values are separate counts.
+
+| Model | Prompt | Quality (valid) | Required-evidence recall | Citation correctness | Missed values | Invented/unsupported | Version selection | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | n | Repairs | Final failures |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mistral | extract.v2 | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 0/1 | 0/12 | 1900.9 | 403.2 | 18772 ms | 20763 ms | 12 | 0/12 | 0 |
+| Qwen | extract.v2 transfer | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 1/1 | 0/12 | 1606.9 | 284.7 | 14989 ms | 18104 ms | 12 | 0/12 | 0 |
+
+Version selection is `select_current_version` on the `E01`/`E02` group (`as_of=2025-06-01`, expected current `E02`). Mistral `0/1` is bad extraction of version/date evidence, not a model choice of which document is current.
 
 ## Triage
 
-| Model | Prompt | Valid outputs | Metrics | Input tokens | Output tokens | Median latency | Max latency | n | Repairs | Retries | Final failures |
-| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| mistral | triage.v1 | 12/12 | escalation: 11/12<br>human_boundary_compliance: 12/12<br>missed_escalation: 0/12 ↓<br>pii_leakage: 1/12 ↓<br>queue: 9/12<br>unnecessary_escalation: 1/12 ↓ | 5462 | 1911 | 5723 ms | 8072 ms | 13 | 1/12 | 0 | 0 |
-| qwen | triage.v1 transfer | 12/12 | escalation: 11/12<br>human_boundary_compliance: 12/12<br>missed_escalation: 0/12 ↓<br>pii_leakage: 0/12 ↓<br>queue: 8/12<br>unnecessary_escalation: 1/12 ↓ | 4375 | 1440 | 5278.5 ms | 8250 ms | 12 | 0/12 | 0 | 0 |
+Prompt: `triage.v1` on Mistral; `triage.v1 transfer` on Qwen.
 
-## Limits
+| Model | Prompt | Quality (valid) | Routing accuracy | Escalation accuracy | Missed escalations | Unnecessary escalations | Human-boundary compliance | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | n | Repairs | Final failures |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mistral | triage.v1 | 12/12 | 9/12 | 11/12 | 0/12 | 1/12 | 12/12 | 1/12 | 455.2 | 159.2 | 5723 ms | 8072 ms | 13 | 1/12 | 0 |
+| Qwen | triage.v1 transfer | 12/12 | 8/12 | 11/12 | 0/12 | 1/12 | 12/12 | 0/12 | 364.6 | 120.0 | 5278.5 ms | 8250 ms | 12 | 0/12 | 0 |
 
-- The Week 2 comparison uses a small fixed case set; report counts rather than treating one-case differences as precise production estimates.
-- A row measures the model together with the prompt version shown in that row.
-- Prompt cells named `summarize.v1`, `extract.v2`, or `triage.v1` are the measured versions. A trailing `transfer` means Qwen ran that same prompt; it is not an adapted Qwen prompt and is not a claim about Qwen in general.
-- Local Ollama provider/API charge is `$0.00`; token usage and latency still represent real operational work.
+Mistral T06 needed one structured repair and still produced a valid output (`n = 13`, repairs `1/12`). Mistral PII leakage is T11 (`draft_reply` copied account number `8812046631`). Human-boundary compliance is `12/12` under both models.
+
+Transport retries: `0` on every row. Provider cost: `$0.00`.
