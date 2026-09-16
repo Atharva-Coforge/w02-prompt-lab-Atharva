@@ -11,13 +11,13 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, cast
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from promptlab.adapters.base import CompletionRequest, CompletionResult
 from promptlab.adapters.ollama import OllamaAdapter
 from promptlab.config import PROJECT_ROOT, Settings
 from promptlab.corpus import GoldLabel, load_cases, validate_corpus
-from promptlab.prompts import load, render_user
+from promptlab.prompts import PromptTemplate, load, render_user
 from promptlab.records import OutputRecord, ScoreRecord, UsageRecord, append_record
 from promptlab.report import write_reports
 from promptlab.rules import candidates_from_extractions, score_version_selection
@@ -218,8 +218,8 @@ def _run_case(
     case_id: str,
     source: str,
     gold: GoldLabel,
-    template: object,
-    schema: type[object],
+    template: PromptTemplate,
+    schema: type[BaseModel],
     adapter: RecordingAdapter,
     model_name: str,
     model_id: str,
@@ -229,20 +229,17 @@ def _run_case(
     scores: list[ScoreRecord],
     validated: dict[str, object],
 ) -> None:
-    prompt_id = getattr(template, "prompt_id")
-    prompt_version = getattr(template, "prompt_version", None) or getattr(template, "version")
-    system = getattr(template, "system")
     user_content = render_user(
-        template,  # type: ignore[arg-type]
-        variables={"schema_description": schema_description(schema)},  # type: ignore[arg-type]
+        template,
+        variables={"schema_description": schema_description(schema)},
         untrusted=source,
     )
     request = CompletionRequest(
         task=task,
         case_id=case_id,
-        prompt_id=str(prompt_id),
-        prompt_version=str(prompt_version),
-        system=str(system),
+        prompt_id=template.prompt_id,
+        prompt_version=template.version,
+        system=template.system,
         user_content=user_content,
         temperature=TEMPERATURE,
         max_output_tokens=MAX_OUTPUT_TOKENS,
@@ -255,7 +252,7 @@ def _run_case(
         parsed = complete_structured(
             adapter,
             request,
-            schema,  # type: ignore[arg-type]
+            schema,
             run_id,
             max_repairs=max_repairs,
         )
@@ -267,7 +264,7 @@ def _run_case(
             task=task,
             case_id=case_id,
             model_name=model_name,
-            prompt_version=str(prompt_version),
+            prompt_version=template.version,
             output=parsed,
             gold=gold,
             source=source,
@@ -279,7 +276,7 @@ def _run_case(
             task=task,
             case_id=case_id,
             model_name=model_name,
-            prompt_version=str(prompt_version),
+            prompt_version=template.version,
             gold=gold,
         )
 
@@ -292,7 +289,7 @@ def _run_case(
         case_id=case_id,
         model_name=model_name,
         model_id=model_id,
-        prompt_version=str(prompt_version),
+        prompt_version=template.version,
         succeeded=succeeded,
         repairs=repairs,
         output=output_payload,
@@ -320,16 +317,15 @@ def main() -> None:
         raise SystemExit("--limit must be at least 1")
 
     settings = Settings.from_env()
-    selected_tasks: list[TaskName]
-    if args.task:
-        selected_tasks = [cast(TaskName, args.task)]
-    else:
-        selected_tasks = list(ALL_TASKS)
+    selected_tasks: list[TaskName] = (
+        [cast(TaskName, args.task)] if args.task else list(ALL_TASKS)
+    )
 
     if args.model:
         logical_name = cast(str, args.model)
         if logical_name not in settings.models:
-            raise SystemExit(f"Unknown model {logical_name!r}; configured names: {list(settings.models)}")
+            configured = list(settings.models)
+            raise SystemExit(f"Unknown model {logical_name!r}; configured names: {configured}")
         selected_models = [logical_name]
     else:
         selected_models = list(settings.models)
