@@ -16,6 +16,11 @@ GOLD_PATH = PROJECT_ROOT / "cases" / "gold" / "triage.jsonl"
 RUN_DOCS_PATH = PROJECT_ROOT / "docs" / "day4-run.jsonl"
 SCORE_DOCS_PATH = PROJECT_ROOT / "docs" / "day4-scores.jsonl"
 SCORER_VERSION = "day5.v1"
+_TASK_PROMPT_ID: dict[TaskName, str] = {
+    "summarization": "summarize",
+    "extraction": "extract",
+    "triage": "triage",
+}
 
 _NUMBERED_HEADING = re.compile(r"^(\d+\.\s+\S.*)$", re.MULTILINE)
 
@@ -158,6 +163,8 @@ def _make_score(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str,
+    prompt_id: str,
     prompt_version: str,
     metric: str,
     numerator: int,
@@ -170,6 +177,8 @@ def _make_score(
         task=task,
         case_id=case_id,
         model_name=model_name,
+        model_id=model_id,
+        prompt_id=prompt_id,
         prompt_version=prompt_version,
         scorer_version=SCORER_VERSION,
         metric=metric,
@@ -205,6 +214,8 @@ def score_row(record: OutputRecord, gold: dict[str, object]) -> list[ScoreRecord
             task=record.task,
             case_id=record.case_id,
             model_name=record.model_name,
+            model_id=record.model_id,
+            prompt_id=_TASK_PROMPT_ID[record.task],
             prompt_version=record.prompt_version,
             metric=metric,
             numerator=numerator,
@@ -239,6 +250,8 @@ def _evidence_scores(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str,
+    prompt_id: str,
     prompt_version: str,
     fields: dict[str, EvidenceField],
     gold: GoldLabel,
@@ -286,6 +299,8 @@ def _evidence_scores(
             task=task,
             case_id=case_id,
             model_name=model_name,
+            model_id=model_id,
+            prompt_id=prompt_id,
             prompt_version=prompt_version,
             metric=metric,
             numerator=numerator,
@@ -321,6 +336,8 @@ def _triage_scores(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str,
+    prompt_id: str,
     prompt_version: str,
     output: dict[str, Any] | None,
     gold: GoldLabel,
@@ -350,6 +367,8 @@ def _triage_scores(
             task=task,
             case_id=case_id,
             model_name=model_name,
+            model_id=model_id,
+            prompt_id=prompt_id,
             prompt_version=prompt_version,
             metric=metric,
             numerator=numerator,
@@ -377,6 +396,8 @@ def _pii_score(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str,
+    prompt_id: str,
     prompt_version: str,
     output: object | None,
 ) -> ScoreRecord:
@@ -386,6 +407,8 @@ def _pii_score(
         task=task,
         case_id=case_id,
         model_name=model_name,
+        model_id=model_id,
+        prompt_id=prompt_id,
         prompt_version=prompt_version,
         metric="pii_leakage",
         numerator=_flag(leaked),
@@ -401,11 +424,14 @@ def score_output(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str = "",
+    prompt_id: str = "",
     prompt_version: str,
     output: object,
     gold: GoldLabel | dict[str, object],
     source: str,
 ) -> list[ScoreRecord]:
+    resolved_prompt_id = prompt_id or _TASK_PROMPT_ID[task]
     label = _as_gold(gold)
     mapping = _as_mapping(output)
     scores: list[ScoreRecord] = []
@@ -416,6 +442,8 @@ def score_output(
                 task=task,
                 case_id=case_id,
                 model_name=model_name,
+                model_id=model_id,
+                prompt_id=resolved_prompt_id,
                 prompt_version=prompt_version,
                 fields=_evidence_fields(output),
                 gold=label,
@@ -430,6 +458,8 @@ def score_output(
                 task=task,
                 case_id=case_id,
                 model_name=model_name,
+                model_id=model_id,
+                prompt_id=resolved_prompt_id,
                 prompt_version=prompt_version,
                 output=mapping,
                 gold=label,
@@ -442,6 +472,8 @@ def score_output(
             task=task,
             case_id=case_id,
             model_name=model_name,
+            model_id=model_id,
+            prompt_id=resolved_prompt_id,
             prompt_version=prompt_version,
             output=output,
         )
@@ -455,9 +487,12 @@ def failure_scores(
     task: TaskName,
     case_id: str,
     model_name: str,
+    model_id: str = "",
+    prompt_id: str = "",
     prompt_version: str,
     gold: GoldLabel | dict[str, object],
 ) -> list[ScoreRecord]:
+    resolved_prompt_id = prompt_id or _TASK_PROMPT_ID[task]
     label = _as_gold(gold)
     scores: list[ScoreRecord] = []
     if task in ("extraction", "summarization"):
@@ -467,6 +502,8 @@ def failure_scores(
                 task=task,
                 case_id=case_id,
                 model_name=model_name,
+                model_id=model_id,
+                prompt_id=resolved_prompt_id,
                 prompt_version=prompt_version,
                 fields={},
                 gold=label,
@@ -481,6 +518,8 @@ def failure_scores(
                 task=task,
                 case_id=case_id,
                 model_name=model_name,
+                model_id=model_id,
+                prompt_id=resolved_prompt_id,
                 prompt_version=prompt_version,
                 output=None,
                 gold=label,
@@ -493,6 +532,8 @@ def failure_scores(
             task=task,
             case_id=case_id,
             model_name=model_name,
+            model_id=model_id,
+            prompt_id=resolved_prompt_id,
             prompt_version=prompt_version,
             metric="pii_leakage",
             numerator=0,
