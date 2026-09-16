@@ -7,6 +7,7 @@ LLM.
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
@@ -15,8 +16,14 @@ from typing import Any
 
 from promptlab.records import OutputRecord, ScoreRecord, UsageRecord
 
-
 _ConfigKey = tuple[str, str, str]  # task, model_name, prompt_version
+_TASK_PROMPT_ID = {
+    "summarization": "summarize",
+    "extraction": "extract",
+    "triage": "triage",
+}
+_VERSION_ONLY = re.compile(r"^v\d+$")
+_TRANSFER_MODEL = "qwen"
 
 
 def _key(record: Any) -> _ConfigKey:
@@ -25,6 +32,22 @@ def _key(record: Any) -> _ConfigKey:
         str(record.model_name),
         str(record.prompt_version),
     )
+
+
+def _prompt_label(task: str, model_name: str, prompt_version: str) -> str:
+    """Render prompt_id.version, and mark Qwen rows as a transfer test."""
+
+    version = prompt_version.strip()
+    prompt_id = _TASK_PROMPT_ID.get(task, task)
+    if version.startswith(f"{prompt_id}."):
+        label = version
+    elif _VERSION_ONLY.fullmatch(version):
+        label = f"{prompt_id}.{version}"
+    else:
+        label = version
+    if model_name == _TRANSFER_MODEL and not label.endswith(" transfer"):
+        return f"{label} transfer"
+    return label
 
 
 def _for_run(records: Sequence[Any], run_id: str) -> list[Any]:
@@ -57,11 +80,7 @@ def _aggregate_scores(
             for value in (getattr(row, "lower_is_better", None) for row in rows)
             if value is not None
         }
-        lower_is_better: bool | None
-        if len(directions) == 1:
-            lower_is_better = next(iter(directions))
-        else:
-            lower_is_better = None
+        lower_is_better = next(iter(directions)) if len(directions) == 1 else None
 
         result[metric] = (numerator, denominator, lower_is_better)
 
@@ -109,12 +128,6 @@ def _usage_summary(
 
     # A semantic repair is a separate model request and should not also be
     # reported as a transport retry merely because it has an attempt number.
-    repair_attempts = sum(
-        1
-        for row in records
-        if str(getattr(row, "kind", "")).lower() == "repair"
-    )
-
     retry_attempts = sum(
         1
         for row in records
@@ -226,9 +239,10 @@ def _write_report(
             valid_outputs, repairs, failures = _output_summary(o)
             metric_text = _metric_text(s)
 
+            prompt_cell = _prompt_label(_task, model_name, prompt_version)
             lines.append(
                 "| "
-                f"{model_name} | {prompt_version} | {valid_outputs} | "
+                f"{model_name} | {prompt_cell} | {valid_outputs} | "
                 f"{metric_text} | {input_tokens} | {output_tokens} | "
                 f"{median_latency} | {max_latency} | {n} | {repairs} | "
                 f"{retries} | {failures} |"
@@ -243,8 +257,9 @@ def _write_report(
             "- The Week 2 comparison uses a small fixed case set; report counts rather "
             "than treating one-case differences as precise production estimates.",
             "- A row measures the model together with the prompt version shown in that row.",
-            "- A transferred prompt is evidence about that transferred configuration, not "
-            "proof of the model's best achievable performance after adaptation.",
+            "- Prompt cells named `summarize.v1`, `extract.v2`, or `triage.v1` are the "
+            "measured versions. A trailing `transfer` means Qwen ran that same prompt; "
+            "it is not an adapted Qwen prompt and is not a claim about Qwen in general.",
             "- Local Ollama provider/API charge is `$0.00`; token usage and latency still "
             "represent real operational work.",
             "",
@@ -294,7 +309,8 @@ def _write_decision_scaffold(
 
     if keys:
         for task, model, prompt in keys:
-            lines.append(f"- `{task}` — {model} — `{prompt}`")
+            label = _prompt_label(task, model, prompt)
+            lines.append(f"- `{task}` — {model} — `{label}`")
     else:
         lines.append("- No configurations supplied.")
 
