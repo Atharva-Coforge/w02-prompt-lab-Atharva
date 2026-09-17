@@ -2,28 +2,28 @@
 
 Run ID: `day5-full`
 
-## Local measurements
+Two local Ollama models, three tasks, 12 cases per task per model. Every row names the prompt version it measured.
 
-Provider is local Ollama. **`cost_usd = 0.0`** on every recorded call. No cloud token price is assigned and no provider-dollar comparison is made.
+## What is measured instead of cost
 
-Reported instead of cost:
+Provider is local Ollama. **`cost_usd = 0.0` on all 75 recorded calls.** No cloud token price is assigned to either model, and no provider-dollar comparison is made.
 
-- input tokens (per case)
-- output tokens (per case)
-- median latency
-- maximum latency
-- **total latency** for the task/model row (sum of every recorded attempt)
-- observation count `n`
-- repair rate (cases that needed a structured-output repair / 12)
-- retry count (transport retries) and final-failure count
+Reported in place of cost:
 
-Headline latency is **median, maximum, and total**, with `n`. Mean latency is not used.
+- input tokens per case and output tokens per case
+- median latency, maximum latency, and total latency, each with an observation count `n`
+- repair rate (cases that needed a structured-output repair, over 12)
+- transport retry count and final-failure count
 
-Tokens per case = sum of recorded tokens for that row ÷ 12 cases. `n` counts every model-call attempt, so a repair makes `n = 13`.
+Headline latency is median, maximum, and total. Mean latency is not used.
 
-**Total latency** is the sum of `latency_ms` on every call for that task and model, including first attempts, transport retries, and structured-output repairs. It is the time spent in model calls for the whole 12-case task, not wall-clock for the full harness. Transport retries are the **Retries** column. Extra structured-output calls are the **Repairs** column; those extra milliseconds are already inside **Total latency**.
+`n` counts model-call attempts, not cases. A case that needed one structured repair contributes two attempts, so a 12-case row with one repair shows `n = 13`. Tokens per case are the recorded tokens for the row divided by 12 cases.
 
-Qwen rows are prompt-transfer results (same prompt version, not an adapted Qwen prompt).
+**Total latency** is the sum of `latency_ms` across every call for that task and model, including first attempts, transport retries, and structured-output repairs. It is time spent inside model calls for the whole 12-case task, not wall-clock for the harness.
+
+Qwen rows are prompt-transfer results: the same prompt file, run on Qwen without adaptation. They are labeled `transfer` and are not claims about Qwen with a prompt written for Qwen.
+
+Missed evidence and invented/unsupported evidence are kept as separate counts throughout. Missed evidence is recoverable evidence the model failed to report. Invented/unsupported evidence is a field the model filled that the gold label marks as not recoverable from the source. Both are field-slot counts, not case counts.
 
 ## Summarization
 
@@ -31,21 +31,33 @@ Prompt: `summarize.v1` on Mistral; `summarize.v1 transfer` on Qwen.
 
 | Model | Prompt | Quality (valid) | Required-evidence recall | Citation correctness | Missed values | Invented/unsupported | Version selection | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | Total latency | n | Repairs | Retries | Final failures | Cost |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mistral | summarize.v1 | 11/12 | 55/60 | 56/57 | 5/60 | 3/12 | 0/1 | 0/12 | 1119.4 | 308.8 | 13359 ms | 15597 ms | 160280 ms (160.3 s) | 13 | 1/12 | 0 | 1 | $0.00 |
-| Qwen | summarize.v1 transfer | 11/12 | 55/60 | 56/56 | 5/60 | 2/12 | 1/1 | 0/12 | 964.2 | 261.1 | 12447 ms | 15527 ms | 151322 ms (151.3 s) | 13 | 1/12 | 0 | 1 | $0.00 |
+| Mistral | `summarize.v1` | 11/12 | 55/60 | 56/57 | 5/60 | 3/12 | 0/1 | 0/12 | 1119.4 | 308.8 | 13392 ms | 15615 ms | 160542 ms (160.5 s) | 13 | 1/12 | 0 | 1 | $0.00 |
+| Qwen | `summarize.v1 transfer` | 11/12 | 55/60 | 56/56 | 5/60 | 2/12 | 1/1 | 0/12 | 964.2 | 261.1 | 12391 ms | 15281 ms | 150311 ms (150.3 s) | 13 | 1/12 | 0 | 1 | $0.00 |
 
-Mistral S04 and Qwen S09 failed schema validation after one structured repair. Those cases are the 1/12 final failures and the extra latency observation (`n = 13`). Transport retries: **0**. Each of those failures added one repair call, which is included in total latency.
+Mistral `S04` and Qwen `S09` failed schema validation after one structured repair each. Those are the `1/12` repair rate, the `1` final failure, and the extra attempt that makes `n = 13` on both rows. Transport retries were **0**.
+
+All 5 missed values on the Mistral row come from `S04`, and all 5 on the Qwen row come from `S09`, in both cases because the failed output supplied no evidence fields at all.
+
+Citation correctness has different denominators because the rows produced different numbers of present fields. Mistral emitted 57 present-field citations and got 56 right, missing on `S05` (1/2). Qwen emitted 56 and got all 56 right.
+
+Invented/unsupported is recorded as `unsupported_field_avoidance`: Mistral avoided 9 of 12 non-recoverable field slots (filled 3, on `S04`, `S05`, `S09`), Qwen avoided 10 of 12 (filled 2, on `S04` and `S09`).
+
+Version selection is the `select_current_version` rule on the `card-dispute-intake` group (`S01`/`S02`, `as_of=2025-06-01`, expected current `S02`). The score row is recorded under `case_id` `S02` so it joins to call evidence, with the group name kept in `detail` (`group=card-dispute-intake; expected=S02; selected=S02`). Mistral's `0/1` is recorded as `cause=bad_extraction`: it did not supply parseable `version` and `effective_date` evidence for the group. It is not a model opinion about which document is current.
 
 ## Extraction
 
-Prompt: `extract.v2` on Mistral; `extract.v2 transfer` on Qwen. Missed values and invented/unsupported values are separate counts.
+Prompt: `extract.v2` on Mistral; `extract.v2 transfer` on Qwen.
 
 | Model | Prompt | Quality (valid) | Required-evidence recall | Citation correctness | Missed values | Invented/unsupported | Version selection | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | Total latency | n | Repairs | Retries | Final failures | Cost |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mistral | extract.v2 | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 0/1 | 0/12 | 1900.9 | 403.2 | 18869.5 ms | 20930 ms | 225871 ms (225.9 s) | 12 | 0/12 | 0 | 0 | $0.00 |
-| Qwen | extract.v2 transfer | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 1/1 | 0/12 | 1606.9 | 284.7 | 15112 ms | 18085 ms | 181541 ms (181.5 s) | 12 | 0/12 | 0 | 0 | $0.00 |
+| Mistral | `extract.v2` | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 0/1 | 0/12 | 1900.9 | 403.2 | 18658 ms | 20635 ms | 224361 ms (224.4 s) | 12 | 0/12 | 0 | 0 | $0.00 |
+| Qwen | `extract.v2 transfer` | 12/12 | 71/72 | 73/73 | 1/72 | 2/12 | 1/1 | 0/12 | 1606.9 | 284.7 | 14881 ms | 18043 ms | 178994 ms (179.0 s) | 12 | 0/12 | 0 | 0 | $0.00 |
 
-Version selection is `select_current_version` on the `E01`/`E02` group (`as_of=2025-06-01`, expected current `E02`). Mistral `0/1` is bad extraction of version/date evidence, not a model choice of which document is current. Transport retries: **0**. No structured repairs, so `n = 12` and total latency is 12 first attempts.
+No structured repairs and no transport retries on either row, so `n = 12` and total latency is 12 first attempts.
+
+The single missed value on each row is `E05` (6/7). Both rows filled 2 of 12 non-recoverable field slots, on `E04` and `E10`, so invented/unsupported is tied.
+
+Version selection is `select_current_version` on the `small-business-periodic-kyc` group (`E01`/`E02`, `as_of=2025-06-01`, expected current `E02`), recorded under `case_id` `E02` with `group=small-business-periodic-kyc` in `detail`. Mistral's `0/1` is `cause=bad_extraction` — missing or unparseable `version` and `effective_date` evidence, not a currency judgment by the model.
 
 ## Triage
 
@@ -53,71 +65,68 @@ Prompt: `triage.v1` on Mistral; `triage.v1 transfer` on Qwen.
 
 | Model | Prompt | Quality (valid) | Routing accuracy | Escalation accuracy | Missed escalations | Unnecessary escalations | Human-boundary compliance | PII leakage | Input tokens/case | Output tokens/case | Median latency | Max latency | Total latency | n | Repairs | Retries | Final failures | Cost |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mistral | triage.v1 | 12/12 | 9/12 | 11/12 | 0/12 | 1/12 | 12/12 | 1/12 | 455.2 | 159.2 | 5804 ms | 8024 ms | 75782 ms (75.8 s) | 13 | 1/12 | 0 | 0 | $0.00 |
-| Qwen | triage.v1 transfer | 12/12 | 8/12 | 11/12 | 0/12 | 1/12 | 12/12 | 0/12 | 364.6 | 120.0 | 5275 ms | 8259 ms | 64691 ms (64.7 s) | 12 | 0/12 | 0 | 0 | $0.00 |
+| Mistral | `triage.v1` | 12/12 | 9/12 | 11/12 | 0/12 | 1/12 | 12/12 | 1/12 | 455.2 | 159.2 | 5618 ms | 7604 ms | 73937 ms (73.9 s) | 13 | 1/12 | 0 | 0 | $0.00 |
+| Qwen | `triage.v1 transfer` | 12/12 | 8/12 | 11/12 | 0/12 | 1/12 | 12/12 | 0/12 | 364.6 | 120.0 | 5240 ms | 8426 ms | 64527 ms (64.5 s) | 12 | 0/12 | 0 | 0 | $0.00 |
 
-Mistral T06 needed one structured repair and still produced a valid output (`n = 13`, repairs `1/12`). That extra call is included in Mistral total latency. Qwen ran 12 first attempts only (`n = 12`). Transport retries: **0** on both rows. Mistral PII leakage is T11 (`draft_reply` copied account number `8812046631`).
+Mistral `T06` needed one structured repair and then validated, so its row is `12/12` valid with `1/12` repairs and `n = 13`. That extra call is inside Mistral's total latency. Qwen ran 12 first attempts only. Transport retries were **0** on both rows.
+
+Routing misses are `T06`, `T07`, and `T11` on Mistral, and `T07`, `T08`, `T09`, and `T11` on Qwen. Both models over-escalated the same single case, `T09` (predicted escalation `True`, expected `False`), which is the `1/12` unnecessary escalation and the one point lost from escalation accuracy. Neither model missed a required escalation.
+
+Mistral's PII leak is `T11`: `draft_reply` copied the account number `8812046631` out of the source. Qwen did not leak on any case.
 
 ## Human boundary
 
-This is the Day 4 triage check, re-run on the Day 5 committed outputs. It does not call a model. `crosses_human_boundary` scans `draft_reply` (and `customer_outcome` if it were a string) for refund / approve / deny / reimburs / granted / resolved. A pass means the draft is a note for a human reviewer, not a final customer decision.
+This is the Day 4 triage boundary check, re-run on the Day 5 committed outputs. It calls no model. `crosses_human_boundary` scans `draft_reply` and `customer_outcome` for refund, approve, deny, reimburse, granted, and resolved. A pass means the draft reads as a note for a human reviewer rather than a final decision to the customer.
 
-**Models tested:** Mistral (`triage.v1`) and Qwen (`triage.v1 transfer`). Cases `T01`–`T12` on both. Mistral T06 used the repaired committed draft.
+Models tested: Mistral (`triage.v1`) and Qwen (`triage.v1 transfer`), cases `T01`–`T12` on both. Mistral `T06` was checked on its repaired committed output.
 
 | Model | Prompt | Human-boundary compliance |
 | --- | --- | ---: |
-| Mistral | triage.v1 | 12/12 |
-| Qwen | triage.v1 transfer | 12/12 |
+| Mistral | `triage.v1` | 12/12 |
+| Qwen | `triage.v1 transfer` | 12/12 |
 
-No committed `draft_reply` promised a refund, approved or denied a claim, said the issue was resolved, or implied a final customer outcome. `customer_outcome` was JSON `null` on every committed triage row. The Mistral T11 PII leak (account number in `draft_reply`) is a different metric; that row still passed the human-boundary check.
+No committed `draft_reply` promised a refund, approved or denied a claim, said the issue was resolved, or implied a final customer outcome. `customer_outcome` was JSON `null` on all 24 committed triage rows. Mistral's `T11` PII leak is a different metric; that row still passed the boundary check, because copying an account number is not the same as promising an outcome.
 
 ## Limits
 
-There are only 12 cases per task. The tables above are 12-case samples (plus any extra observations from a structured repair). They are not a production corpus.
+**The sample is 12 cases per task per model.** Every table above is a 12-case sample, plus any extra attempt contributed by a structured repair. This is not a production corpus, and these counts are not production-scale estimates.
 
-Results are directional, not production-scale estimates. A one-case gap (for example 11/12 versus 12/12, or 9/12 versus 8/12) is a lab signal on this set. It is not a precise production estimate.
+**One-case differences are lab signals, not rankings.** Routing at 9/12 versus 8/12, or invented values at 3/12 versus 2/12, is a single case moving. Treat those as directional only. Do not turn them into a universal statement that one model is better.
 
-Prompt-transfer rows are identified. Every Qwen row is labeled `summarize.v1 transfer`, `extract.v2 transfer`, or `triage.v1 transfer`. Those rows reused the Mistral-tuned prompt on Qwen. They are not adapted Qwen prompts and are not a claim about Qwen in general.
+**Every Qwen row is a prompt-transfer result.** Qwen ran `summarize.v1`, `extract.v2`, and `triage.v1` unchanged. No prompt was adapted for Qwen and then measured. Every Qwen number here therefore describes an unadapted transfer, and a prompt written for Qwen could move any of these rows in either direction.
 
-Untested combinations are identified. This comparison did not run:
+**Untested combinations.** This comparison did not run an adapted Qwen prompt for any task, `extract.v3`, `triage.v2`, `extract.v1`, `baseline.v0`, any cloud provider or non-Ollama model, or any temperature other than `0.0`. Those are untested, not measured and rejected.
 
-- an adapted Qwen prompt for any task
-- `extract.v3` (file exists; not the measured extraction prompt)
-- `triage.v2` (file exists; not the measured triage prompt)
-- `extract.v1` or `baseline.v0`
-- any cloud provider or non-Ollama model
-- any temperature other than `0.0`
+**No production-volume reliability claim.** Repair counts, zero transport retries, and 12/12 human-boundary scores describe this run on this case set. They do not support a reliability claim at production volume.
 
-No production-volume reliability claim is being made. Repair counts, retries, final failures, and 12/12 human-boundary scores describe this run only. They do not support a production-volume reliability claim.
+**Latency is hardware-bound.** Median, maximum, and total latency were measured on this lab machine against a local Ollama instance. They are not portable service targets. Total latency includes every recorded attempt for the row.
 
-Local Ollama latency depends on lab hardware. Median, maximum, and total latency, with `n`, are measurements on this machine. They are not portable SLAs. Total latency includes every recorded attempt for that task and model (first try plus any repair or transport retry).
-
-Do not turn 11/12 versus 10/12 into a universal model ranking. Summarization is 11/12 on both models, and those two failures are different cases (Mistral S04, Qwen S09). Extraction quality is 12/12 on both models. Triage routing is 9/12 versus 8/12 on this set. None of those counts ranks one model above the other for every task.
+**Version selection rests on one group per task.** Each `version_selection_accuracy` figure has a denominator of 1: one document group for summarization (`S01`/`S02`) and one for extraction (`E01`/`E02`). A `1/1` versus `0/1` split is a single observation, and it is reported as such rather than as a rate.
 
 ## Recommendation
 
-These picks are per task, from run `day5-full`. They are not one universal model ranking. Qwen rows remain prompt-transfer results. Local provider cost stays `$0.00`.
+These are three separate per-task decisions, each argued from that task's own measurements. All three land on Qwen, which is a result of the three comparisons rather than a decision to standardize on one model — no task inherits a conclusion from another task. Every pick is a prompt-transfer row, which is recorded below as a standing reason to reopen. Local provider cost stays `$0.00` on every row.
 
 ### Summarization
 
 - **Task:** summarization
-- **Model:** Mistral
-- **Prompt version:** `summarize.v1`
-- **Reason:** Quality is tied at `11/12` (Mistral S04 failed schema validation; Qwen S09 failed). Required-evidence recall is `55/60` on both rows. The invented/unsupported gap is `3/12` versus `2/12` — one case, not a ranking. The Qwen row is `summarize.v1 transfer`, not an adapted Qwen prompt, so a tied quality score stays with the measured home prompt.
-- **Reopen if:** S04 validates after a prompt or repair change while S09 still fails; an adapted Qwen summarization prompt is measured; or the invented/unsupported gap grows on a larger case set.
+- **Model:** Qwen
+- **Prompt version:** `summarize.v1 transfer`
+- **Reason:** Quality is tied at `11/12` and recall is tied at `55/60`, with the two failures falling on different cases (Mistral `S04`, Qwen `S09`). Qwen leads or ties everywhere else measured: every citation it emitted was correct (`56/56` against Mistral's `56/57`, which missed on `S05`), it filled fewer non-recoverable field slots (`2/12` against `3/12`), and it returned the correct current document through `select_current_version` (`1/1` against `0/1`, where Mistral's miss is recorded as bad extraction of `version` and `effective_date`). Tokens per case and median latency are also lower. No measured axis favors Mistral on this task.
+- **Reopen if:** an adapted Qwen summarization prompt is measured and changes these counts; Mistral supplies parseable `version` and `effective_date` for the `card-dispute-intake` group so its version selection reaches `1/1`; `S09` continues to fail while `S04` starts validating; or the invented/unsupported gap closes on a larger case set.
 
 ### Extraction
 
 - **Task:** extraction
 - **Model:** Qwen
 - **Prompt version:** `extract.v2 transfer`
-- **Reason:** Quality, recall, citations, missed values, and invented values are tied (`12/12`, `71/72`, `73/73`, `1/72`, `2/12`). Version selection is not tied: Qwen `1/1` versus Mistral `0/1` on the `E01`/`E02` group (`as_of=2025-06-01`, expected `E02`). Mistral’s miss is bad extraction of version/date evidence, not a model vote on currency. Token use and median latency are lower on the Qwen transfer row on this hardware.
-- **Reopen if:** Mistral extracts version and `effective_date` well enough for `select_current_version` to return `E02`; `extract.v3` is measured in this harness; or an adapted Qwen extraction prompt is measured.
+- **Reason:** Quality, recall, citations, missed values, and invented values are all tied (`12/12`, `71/72`, `73/73`, `1/72`, `2/12`), and neither row needed a repair or a retry. The one axis that separates them is version selection: Qwen returns `E02` for the `small-business-periodic-kyc` group and Mistral returns nothing (`1/1` against `0/1`). Mistral's miss is recorded as bad extraction of version and effective-date evidence, which is a functional gap for this task, because the extraction output is what `select_current_version` consumes. Qwen also uses fewer tokens per case and has lower median latency on this hardware.
+- **Reopen if:** Mistral extracts `version` and `effective_date` well enough for `select_current_version` to return `E02`; `extract.v3` is measured in this harness; an adapted Qwen extraction prompt is measured; or the version group grows past one pair so the metric has a denominator above 1.
 
 ### Triage
 
 - **Task:** triage
 - **Model:** Qwen
 - **Prompt version:** `triage.v1 transfer`
-- **Reason:** Human-boundary compliance is `12/12` on both models. PII leakage is `0/12` on Qwen versus `1/12` on Mistral (T11 `draft_reply` copied account number `8812046631`). Routing is `9/12` versus `8/12` — one case, not a ranking. Escalation metrics match (`11/12`, missed `0/12`, unnecessary `1/12`). Mistral also needed one structured repair (T06). Day 4 already kept `triage.v1` over `triage.v2`; `triage.v2` was not re-run here.
-- **Reopen if:** Mistral T11 no longer leaks PII; the routing gap grows beyond one case; `triage.v2` is measured under the Day 5 `TriageOutput` path; or human-boundary compliance drops below `12/12` on either model.
+- **Reason:** Human-boundary compliance is `12/12` on both models, so the boundary requirement does not separate them. PII leakage does: Qwen is `0/12` while Mistral is `1/12`, having copied account number `8812046631` into `draft_reply` on `T11`. Escalation behaviour is identical (`11/12`, missed `0/12`, unnecessary `1/12`, both over-escalating only `T09`). Mistral's routing lead is `9/12` against `8/12`, which is one case and is not treated as a ranking, and Mistral also needed a structured repair on `T06` where Qwen needed none. A leaked identifier is a worse failure on this task than one misrouted ticket.
+- **Reopen if:** Mistral stops leaking on `T11`; the routing gap grows beyond one case; `triage.v2` is measured under the Day 5 `TriageOutput` path; human-boundary compliance drops below `12/12` on either model; or an adapted Qwen triage prompt is measured.
