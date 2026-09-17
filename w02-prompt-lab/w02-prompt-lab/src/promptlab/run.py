@@ -200,7 +200,7 @@ def _add_version_scores(
         record = ScoreRecord(
             run_id=run_id,
             task=task,
-            case_id=f"version:{group_name}",
+            case_id=expected,
             model_name=model_name,
             model_id=model_id,
             prompt_id=prompt_id,
@@ -209,7 +209,7 @@ def _add_version_scores(
             metric="version_selection_accuracy",
             numerator=scored.numerator,
             denominator=scored.denominator,
-            detail=scored.detail,
+            detail=f"group={group_name}; {scored.detail}",
         )
         append_record(DAY5_SCORES_PATH, record)
         all_scores.append(record)
